@@ -1,0 +1,36 @@
+<header>
+    <link href="https://fonts.googleapis.com/css?family=Merienda" rel="stylesheet">
+</header>
+
+<div class="taskbar">
+  <div class="logo">
+    <a href="#">
+        <img id="imageLogo" src="assets/images/QuestBridge-Logo.png">
+    </a>
+    <h3 class="titleText">QuestChat</h3>
+  </div>
+  <div id="groupButton">
+    <div class="divButton">
+        <button class="myButton" mat-button color="primary" (click)="createConnection()">Connect</button>
+    </div>
+    <div class="divButton">
+        <button class="myButton" mat-button color="primary" (click)="stopConnection()">Stop</button>
+    </div>
+    <div class="divButton">
+        <button class="myButton" mat-button color="primary" (click)="logOut()">Next Questies</button>
+    </div>
+  </div>
+</div>
+  
+<div class="showMessage">
+  {{myMessage}}
+</div>
+
+<footer class="footer">
+    <div>
+        <mat-form-field id="messageInput">
+            <input matInput placeholder="Enter the message">
+          </mat-form-field>
+        <button id="sendButton" mat-stroked-button (click)="sendMessage(message.value)">Send</button>
+    </div>
+</footer>
