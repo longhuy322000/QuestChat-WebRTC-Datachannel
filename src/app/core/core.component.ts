@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, NgZone } from '@angular/core';
 declare let RTCPeerConnection: any;
 
 @Component({
@@ -12,13 +12,15 @@ export class CoreComponent implements OnInit {
   public remoteConnection = null;
   public sendChannel = null;
   public receiveChannel = null;
-  public myMessage = [];
+  public myMessage = []; textMessage = "";
+  public connect: boolean; disconnect: boolean;
 
-  constructor() {
+  constructor(private _ngZone: NgZone) {
   }
   
   ngOnInit(): void {
-    
+    this.connect = false;
+    this.disconnect = true;
   }
 
   createConnection()
@@ -66,8 +68,9 @@ export class CoreComponent implements OnInit {
       this.receiveChannel = event.channel;
       this.receiveChannel.onmessage = (event) => 
       {
-        this.myMessage.push(event.data);
-        console.log(this);
+        this._ngZone.run(() => {
+          this.myMessage.push(event.data);
+        })
       };
       this.receiveChannel.onopen = (event) =>
       {
@@ -96,6 +99,9 @@ export class CoreComponent implements OnInit {
     .then(answer => this.remoteConnection.setLocalDescription(answer))
     .then(() => this.localConnection.setRemoteDescription(this.remoteConnection.localDescription))
     .catch(this.handleCreateDescriptionError);
+
+    this.disconnect = false;
+    this.connect = true;
   }
 
   handleCreateDescriptionError(error)
@@ -118,44 +124,10 @@ export class CoreComponent implements OnInit {
     console.log("Oh noes! addICECandidate failed!");
   }
 
-  sendMessage(message: string)
+  sendMessage()
   {
-    console.log("sent", Date.now());
-    this.sendChannel.send(message);
-  }
-
-  handleSendChannelStatusChange(event)
-  {
-    if (this.sendChannel) {
-      let state = this.sendChannel.readyState;
-    
-      if (state === "open") {
-        console.log("maybe successful sent message?")
-      } else {
-        console.log("maybe failed sent message?")
-      }
-    }
-  }  
-
-  receiveChannelCallback(event)
-  {
-    let tempMessage;
-    this.receiveChannel = event.channel;
-    this.receiveChannel.onmessage = (event) => 
-    {
-      tempMessage = event.data;
-      console.log(event.data);
-    };
-    this.receiveChannel.onopen = (event) =>
-    {
-      if (this.receiveChannel)
-        console.log("Receive channel's status has changed to " + this.receiveChannel.readyState);
-    }
-    this.receiveChannel.onclose = (event) => 
-    {
-      if (this.receiveChannel)
-        console.log(this.receiveChannel, "Receive channel's status has changed to " + this.receiveChannel.readyState);
-    };
+    this.sendChannel.send(this.textMessage);
+    this.textMessage="";
   }
 
   stopConnection()

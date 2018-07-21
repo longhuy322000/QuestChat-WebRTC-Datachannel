@@ -6,6 +6,7 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations'
 import { MaterialModule } from './material/material.module';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import { CoreComponent } from './core/core.component';
+import { FormsModule } from '@angular/forms';
 
 
 @NgModule({
@@ -18,7 +19,8 @@ import { CoreComponent } from './core/core.component';
     NoopAnimationsModule,
     BrowserAnimationsModule,
     MaterialModule,
-    NgbModule.forRoot()
+    NgbModule.forRoot(),
+    FormsModule
   ],
   providers: [],
   bootstrap: [AppComponent]

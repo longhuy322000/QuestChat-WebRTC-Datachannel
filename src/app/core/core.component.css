@@ -6,7 +6,7 @@
 
 .logo {
     vertical-align: middle !important;
-    width: 30% !important;
+    width: 20% !important;
     text-align: center;
     float: left;
     margin-top: 0.2cm;
@@ -19,7 +19,7 @@
 #groupButton {
     margin-top: 0.2cm;
     float: left;
-    width: 70%;
+    width: 80%;
 }
 
 .divButton {
@@ -73,6 +73,7 @@
 .showMessage {
     width: 100%;
     margin-left: 2%;
+    margin-top: 1cm;
 }
 
 .footer {

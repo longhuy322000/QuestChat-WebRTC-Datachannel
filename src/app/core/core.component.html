@@ -11,26 +11,26 @@
   </div>
   <div id="groupButton">
     <div class="divButton">
-        <button class="myButton" mat-button color="primary" (click)="createConnection()">Connect</button>
+        <button class="myButton" mat-button color="primary" (click)="createConnection()" [disabled]="connect">Connect</button>
     </div>
     <div class="divButton">
-        <button class="myButton" mat-button color="primary" (click)="stopConnection()">Stop</button>
+        <button class="myButton" mat-button color="primary" (click)="stopConnection()" [disabled]="disconnect">Disconnect</button>
     </div>
     <div class="divButton">
-        <button class="myButton" mat-button color="primary" (click)="logOut()">Next Questies</button>
+        <button class="myButton" mat-button color="primary">Next Questies</button>
     </div>
   </div>
 </div>
-  
-<div class="showMessage">
-  {{myMessage}}
+
+<div class="showMessage" *ngFor="let message of myMessage">
+    {{message}}
 </div>
 
 <footer class="footer">
     <div>
         <mat-form-field id="messageInput">
-            <input matInput placeholder="Enter the message">
+            <input matInput color="primary" placeholder="Enter the message" [(ngModel)]="textMessage">
           </mat-form-field>
-        <button id="sendButton" mat-stroked-button (click)="sendMessage(message.value)">Send</button>
+        <button id="sendButton" mat-stroked-button color="primary" (click)="sendMessage()">Send</button>
     </div>
 </footer>
