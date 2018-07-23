@@ -84,9 +84,7 @@ export class CoreComponent implements OnInit {
       };
     }
 
-    this.localConnection.onicecandidate = (e) => !e.candidate
-      || this.remoteConnection.addIceCandidate(e.candidate)
-    .catch(this.handleAddCandidateError);
+    this.localConnection.onicecandidate = (e) =>console.log(e);
 
     this.remoteConnection.onicecandidate = e => !e.candidate
         || this.localConnection.addIceCandidate(e.candidate)
