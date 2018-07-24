@@ -14,12 +14,7 @@ export class ChatComponent implements OnInit {
   public peerConnection = null;
   public dataChannel = null;
   public roomId; myId; availableRoom: boolean = false;
-
-  public localConnection = null;
-  public remoteConnection = null;
-  public sendChannel = null;
-  public receiveChannel = null;
-  public myMessage = []; textMessage = "";
+  public myMessage = []; textMessage = ""; importantText: string;
   public connect: boolean; disconnect: boolean;
   public roomCollection: AngularFirestoreCollection;
   public checkRoom: boolean = false;
@@ -44,78 +39,88 @@ export class ChatComponent implements OnInit {
     //this.roomId = this.db.createId();
     this.roomId = 'testing';
     this.chatSerive.getChanges(this.roomId)
-      .subscribe(data =>
-        {
-          if (!this.checkRoom)
-          {
-            console.log(data);
-            this.checkRoom = true;
-            this.isEmpty(data)? this.availableRoom=true : this.availableRoom=false;
-          }
-        });
-      
+      .subscribe(data => this.readMessage(data));
     this.peerConnection = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.services.mozilla.com" },
         { urls: "stun:stun.l.google.com:19302" }
       ]
     }, { optional: [] });
-    // this.peerConnection.onicecandidate = (event) => {
-    //   event.candidate ? this.sendIceCandidate('ice', JSON.stringify({ ice: event.candidate })) : console.log("Sent All Ice");
-    // }
+    this.peerConnection.onicecandidate = (event) => {
+      event.candidate ? this.sendRTC(JSON.stringify({ ice: event.candidate })) : console.log("Sent All Ice");
+    }
+    this.peerConnection.ondatachannel = (event) => 
+    {
+      this.dataChannel = event.channel;
+      this.dataChannel.onmessage = (event) => 
+      {
+        this._ngZone.run(() => {
+          this.myMessage.push({sender: 'Friendly Questies', message: event.data});
+        })
+      }
+      this.dataChannel.onopen = (event) =>  {
+        console.log("readyState: ", this.dataChannel.readyState);
+        this._ngZone.run(() => {
+          this.importantText = "You're connected with a Questies. You can chat with your friendly Questies now.";
+        })
+      }
+      this.dataChannel.onclose = (event) => {
+        console.log("readyState: ", this.dataChannel.readyState);
+        this._ngZone.run(() => {
+          this.importantText = "You're disconnected with your friendly Questies";
+        })
+      }
+    }
   }
 
   createConnection()
   {
-    debugger;
-    console.log(this.availableRoom);
-    this.chatSerive.getChanges(this.roomId)
-      .subscribe(data => this.readMessage(data));
-    if (this.availableRoom)
-    {
-      this.dataChannel = this.peerConnection.createDataChannel(this.roomId);
-      this.peerConnection.createOffer()
-      .then((offer) => this.peerConnection.setLocalDescription(offer))
-      .then(() => this.sendIceCandidate('offer', JSON.stringify({ sdp: this.peerConnection.localDescription })));
+    this.importantText = "Connecting you to other Questies";
+    this.dataChannel = this.peerConnection.createDataChannel(this.roomId);
+    this.peerConnection.createOffer()
+    .then((offer) => this.peerConnection.setLocalDescription(offer))
+    .then(() => this.sendRTC(JSON.stringify({ sdp: this.peerConnection.localDescription })));
+
+    this.dataChannel.onopen = (event) =>  {
+      console.log("readyState: ", this.dataChannel.readyState);
+      this._ngZone.run(() => {
+        this.importantText = "You're connected with a Questies. You can chat with your friendly Questies now.";
+      })
     }
-    else
-    {
-      this.peerConnection.ondatachannel = (event) => 
-      {
-        this.dataChannel = event.channel;
-      }
+    this.dataChannel.onclose = (event) => {
+      console.log("readyState: ", this.dataChannel.readyState);
+      this._ngZone.run(() => {
+        this.importantText = "You're disconnected with your friendly Questies";
+      })
     }
-    this.dataChannel.onopen = (event) => { console.log("readyState: ", this.dataChannel.readyState) };
-    this.dataChannel.onclose = (event) => { console.log("readyState: ", this.dataChannel.readyState) };
     this.dataChannel.onmessage = (event) => 
     {
       this._ngZone.run(() => {
-        this.myMessage.push(event.data);
+        this.myMessage.push({sender: 'Friendly Questies', message: event.data});
       })
     };
   }
 
-  sendIceCandidate(type: string, ice: string)
+  sendRTC(msg: string)
   {
-    this.roomCollection.doc(this.roomId).set({type: type, sender: this.myId, message: ice});
+    this.roomCollection.doc(this.roomId).update({sender: this.myId, message: msg});
   }
 
   readMessage(data)
   {
-    console.log(data);
-    let msg = data.message;
+    let msg = JSON.parse(data.message);
     let sender = data.sender;
     if (sender != this.myId)
     {
-      if (data.type == 'ice')
+      if (msg.ice != undefined)
         this.peerConnection.addIceCandidate(new RTCIceCandidate(msg.ice));
-      else if (data.type == "offer")
+      else if (msg.sdp.type == "offer")
         this.peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp))
           .then(() => this.peerConnection.createAnswer())
           .then(answer => this.peerConnection.setLocalDescription(answer))
-          .then(() => this.sendIceCandidate('answer', JSON.stringify({'sdp': this.peerConnection.localDescription})));
-      else if (data.type == "answer")
-        this.peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+          .then(() => this.sendRTC(JSON.stringify({'sdp': this.peerConnection.localDescription})));
+      else if (msg.sdp.type == "answer")
+      this.peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp));
     }
   }
 
@@ -157,22 +162,18 @@ export class ChatComponent implements OnInit {
 
   sendMessage()
   {
-    this.sendChannel.send(this.textMessage);
+    this.myMessage.push({sender: 'You', message: this.textMessage})
+    this.dataChannel.send(this.textMessage);
     this.textMessage="";
   }
 
   stopConnection()
   {
-    this.sendChannel.close();
-    this.receiveChannel.close();
-    
-    this.localConnection.close();
-    this.remoteConnection.close();
+    this.dataChannel.close();
+    this.peerConnection.close();
 
-    this.sendChannel = null;
-    this.receiveChannel = null;
-    this.localConnection = null;
-    this.remoteConnection = null;
+    this.dataChannel = null;
+    this.peerConnection = null;
 
     console.log("stop connection");
   }

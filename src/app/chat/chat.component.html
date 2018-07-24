@@ -22,15 +22,17 @@
   </div>
 </div>
 
+<p *ngIf="importantText" class="importantText">{{importantText}}</p>
+
 <div class="showMessage" *ngFor="let message of myMessage">
-    {{message}}
+    <p class="messageText"><span class="sender">{{message.sender}}: </span>{{message.message}}</p>
 </div>
 
 <footer class="footer">
     <div>
         <mat-form-field id="messageInput">
-            <input matInput color="primary" placeholder="Enter the message" [(ngModel)]="textMessage">
-          </mat-form-field>
+            <input matInput color="primary" placeholder="Enter the message" [(ngModel)]="textMessage" (keyup.enter)="sendMessage()">
+        </mat-form-field>
         <button id="sendButton" mat-stroked-button color="primary" (click)="sendMessage()">Send</button>
     </div>
 </footer>

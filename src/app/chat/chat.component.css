@@ -1,7 +1,10 @@
 .taskbar {
-    border-bottom: 1px solid #dedede;
-    height: 7rem;
+    height: 10%;
     width: 100%;
+}
+
+.myBorder {
+    border-bottom: 5px solid #dedede;
 }
 
 .logo {
@@ -73,11 +76,35 @@
 .showMessage {
     width: 100%;
     margin-left: 2%;
-    margin-top: 1cm;
+    overflow-y: scroll;
+    height: 80%;
+}
+
+.sender {
+    font-weight: bold;
+}
+
+html, body {
+    height:100%;
+    overflow:hidden;
 }
 
 .footer {
     position: absolute;
+    height: 10%;
     bottom: 0.3cm;
     width: 100%;
+}
+
+.importantText {
+    color: red;
+    font-weight: bold;
+}
+
+.messageText {
+    font-family: 'Indie Flower', cursive;
+}
+
+p {
+    margin: 0;
 }
