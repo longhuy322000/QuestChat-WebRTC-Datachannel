@@ -1,4 +1,4 @@
-import { Component, OnInit, NgZone } from '@angular/core';
+import { Component, OnInit, NgZone, OnDestroy, HostListener  } from '@angular/core';
 import { AngularFirestore, AngularFirestoreCollection } from 'angularfire2/firestore';
 import { ChatService } from './chat.service';
 import { THIS_EXPR } from '../../../node_modules/@angular/compiler/src/output/output_ast';
@@ -9,7 +9,7 @@ declare let RTCPeerConnection: any;
   templateUrl: './chat.component.html',
   styleUrls: ['./chat.component.css']
 })
-export class ChatComponent implements OnInit {
+export class ChatComponent implements OnInit, OnDestroy {
 
   public peerConnection = null;
   public dataChannel = null;
@@ -17,7 +17,12 @@ export class ChatComponent implements OnInit {
   public myMessage = []; textMessage = ""; importantText: string;
   public connect: boolean; disconnect: boolean;
   public roomCollection: AngularFirestoreCollection;
+  public offerCollection: AngularFirestoreCollection;
+  public answerCollection: AngularFirestoreCollection;
   public checkRoom: boolean = false;
+  public sendValue = {};
+  public peerType: string;
+  public checkAdd = {offer: false, answer: false};
 
   constructor(
     private _ngZone: NgZone,
@@ -25,29 +30,109 @@ export class ChatComponent implements OnInit {
     private chatSerive: ChatService
   ) {
   }
+
+  @HostListener('window:unload', [ '$event' ])
+  unloadHandler(event) {
+    this.stopConnection();
+  }
+
+  @HostListener('window:beforeunload', [ '$event' ])
+  beforeUnloadHander(event) {
+    this.stopConnection();
+  }
   
-  ngOnInit(): void {
+  ngOnInit(): void
+  {
     this.connect = false;
     this.disconnect = true;
     this.roomCollection = this.db.collection('Room');
-    this.setUpRTC();
+    this.offerCollection = this.db.collection('Offer');
+    this.answerCollection = this.db.collection('Answer');
   }
 
-  setUpRTC()
+  ngOnDestroy(): void
   {
+    this.stopConnection();
+  }
+
+  createConnection()
+  {
+    this.sendValue = {};
+    this.checkAdd = {offer: false, answer: false};
+    this.checkRoom = false;
     this.myId = this.guid();
-    //this.roomId = this.db.createId();
-    this.roomId = 'testing';
-    this.chatSerive.getChanges(this.roomId)
-      .subscribe(data => this.readMessage(data));
     this.peerConnection = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.services.mozilla.com" },
         { urls: "stun:stun.l.google.com:19302" }
       ]
     }, { optional: [] });
+    this.chatSerive.getAvailableOffer()
+      .subscribe(data => 
+      {
+        if (!this.checkRoom)
+        {
+          if (data.length == 0)
+            this.createOffer();
+          else
+            this.createAnswer(data);
+          this.checkRoom = true;
+        }
+        this.checkRoom = true;
+      })
+  }
+
+  createOffer()
+  {
+    this.peerType = 'offer';
+    this.sendRTC('Offer', this.myId, 'active', 'waiting');
     this.peerConnection.onicecandidate = (event) => {
-      event.candidate ? this.sendRTC(JSON.stringify({ ice: event.candidate })) : console.log("Sent All Ice");
+      event.candidate ? this.sendRTC('Offer', this.myId, 'ice', JSON.stringify({ ice: event.candidate })) : console.log("Sent All Ice");
+    }
+    this.importantText = "Connecting you to other Questies";
+    this.dataChannel = this.peerConnection.createDataChannel(this.roomId);
+    this.peerConnection.createOffer()
+    .then((offer) => this.peerConnection.setLocalDescription(offer))
+    .then(() => this.sendRTC('Offer', this.myId, 'offer', JSON.stringify({ sdp: this.peerConnection.localDescription })));
+
+    this.dataChannel.onopen = (event) =>  {
+      console.log("readyState: ", this.dataChannel.readyState);
+      this._ngZone.run(() => {
+        this.importantText = "You're connected with a Questies. You can chat with your friendly Questies now.";
+      })
+    }
+    this.dataChannel.onclose = (event) => {
+      console.log("readyState: ", this.dataChannel.readyState);
+      this._ngZone.run(() => {
+        this.importantText = "You're disconnected with your friendly Questies";
+      })
+    }
+    this.dataChannel.onmessage = (event) => 
+    {
+      this._ngZone.run(() => {
+        this.myMessage.push({sender: 'Friendly Questies', message: event.data});
+      })
+    };
+    this.offerCollection.doc(this.myId).valueChanges()
+      .subscribe((data:any) => 
+      {
+        if (data.hasOwnProperty('answerer'))
+          this.answerCollection.doc(data.answerer).valueChanges()
+            .subscribe(answerData => this.readMessage(answerData, 'Offer'))
+      })
+  }
+
+  createAnswer(data)
+  {
+    this.peerType = 'answer';
+    this.sendRTC('Answer', this.myId, 'active', 'waiting');
+    let num = this.getRandomInt(data.length);
+    this.offerCollection.doc(data[num].id).valueChanges()
+      .subscribe(offerData => this.readMessage(offerData, 'Answer'));
+    data[num]['answerer'] = this.myId;
+    this.offerCollection.doc(data[num].id).update(data[num]);
+    this.peerConnection.onicecandidate = (event) => {
+      event.candidate ? this.sendRTC('Answer', this.myId, 'ice', JSON.stringify({ ice: event.candidate })) : console.log("Sent All Ice");
     }
     this.peerConnection.ondatachannel = (event) => 
     {
@@ -73,53 +158,44 @@ export class ChatComponent implements OnInit {
     }
   }
 
-  createConnection()
+  sendRTC(database: string, id: string, type: string, message: string)
   {
-    this.importantText = "Connecting you to other Questies";
-    this.dataChannel = this.peerConnection.createDataChannel(this.roomId);
-    this.peerConnection.createOffer()
-    .then((offer) => this.peerConnection.setLocalDescription(offer))
-    .then(() => this.sendRTC(JSON.stringify({ sdp: this.peerConnection.localDescription })));
-
-    this.dataChannel.onopen = (event) =>  {
-      console.log("readyState: ", this.dataChannel.readyState);
-      this._ngZone.run(() => {
-        this.importantText = "You're connected with a Questies. You can chat with your friendly Questies now.";
-      })
-    }
-    this.dataChannel.onclose = (event) => {
-      console.log("readyState: ", this.dataChannel.readyState);
-      this._ngZone.run(() => {
-        this.importantText = "You're disconnected with your friendly Questies";
-      })
-    }
-    this.dataChannel.onmessage = (event) => 
+    this.sendValue[type] = message;
+    console.log("send value", "to ", database, this.sendValue);
+    try
     {
-      this._ngZone.run(() => {
-        this.myMessage.push({sender: 'Friendly Questies', message: event.data});
-      })
-    };
+      this.db.collection(database).doc(id).set(this.sendValue);
+    } catch(error)
+    {
+      this.db.collection(database).doc(id).update(this.sendValue);
+    }
   }
 
-  sendRTC(msg: string)
+  readMessage(data, type: string)
   {
-    this.roomCollection.doc(this.roomId).update({sender: this.myId, message: msg});
-  }
-
-  readMessage(data)
-  {
-    let msg = JSON.parse(data.message);
-    let sender = data.sender;
-    if (sender != this.myId)
+    console.log("reading data", data, type);
+    let msg;
+    if (data.hasOwnProperty('ice'))
     {
-      if (msg.ice != undefined)
-        this.peerConnection.addIceCandidate(new RTCIceCandidate(msg.ice));
-      else if (msg.sdp.type == "offer")
-        this.peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp))
+      msg = JSON.parse(data.ice);
+      this.peerConnection.addIceCandidate(new RTCIceCandidate(msg.ice));
+    }
+    if (data.hasOwnProperty('offer') && !this.checkAdd.offer)
+    {
+      msg = JSON.parse(data.offer);
+      this.peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp))
           .then(() => this.peerConnection.createAnswer())
-          .then(answer => this.peerConnection.setLocalDescription(answer))
-          .then(() => this.sendRTC(JSON.stringify({'sdp': this.peerConnection.localDescription})));
-      else if (msg.sdp.type == "answer")
+          .then(answer =>
+            {
+              this.checkAdd.offer = true
+              this.peerConnection.setLocalDescription(answer)
+            })
+          .then(() => this.sendRTC('Answer', this.myId, 'answer', JSON.stringify({'sdp': this.peerConnection.localDescription})));
+    }
+    if (data.hasOwnProperty('answer') && !this.checkAdd.answer)
+    {
+      msg = JSON.parse(data.answer);
+      this.checkAdd.answer = true;
       this.peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp));
     }
   }
@@ -131,6 +207,11 @@ export class ChatComponent implements OnInit {
             return false;
     }
     return true;
+  }
+
+  getRandomInt(max): number
+  {
+    return Math.floor(Math.random() * Math.floor(max));
   }
 
   guid() {
@@ -175,7 +256,13 @@ export class ChatComponent implements OnInit {
     this.dataChannel = null;
     this.peerConnection = null;
 
+    if (this.peerType == 'offer')
+      this.offerCollection.doc(this.myId).delete();
+    else this.answerCollection.doc(this.myId).delete();
+
+    this.peerType = "";
+    this.checkRoom = false;
+
     console.log("stop connection");
   }
-
 }
