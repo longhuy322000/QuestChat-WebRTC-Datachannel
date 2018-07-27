@@ -1,7 +1,7 @@
-import { Component, OnInit, NgZone, OnDestroy, HostListener  } from '@angular/core';
+import { Component, OnInit, NgZone, OnDestroy, HostListener, ViewChild, ElementRef, AfterViewChecked, AfterViewInit  } from '@angular/core';
 import { AngularFirestore, AngularFirestoreCollection } from 'angularfire2/firestore';
 import { ChatService } from './chat.service';
-import { THIS_EXPR } from '../../../node_modules/@angular/compiler/src/output/output_ast';
+import { Content } from 'ionic-angular';
 declare let RTCPeerConnection: any;
 
 @Component({
@@ -9,7 +9,10 @@ declare let RTCPeerConnection: any;
   templateUrl: './chat.component.html',
   styleUrls: ['./chat.component.css']
 })
-export class ChatComponent implements OnInit, OnDestroy {
+
+export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
+  
+  @ViewChild('scrollMe') private myScrollContainer: ElementRef;
 
   public peerConnection = null;
   public dataChannel = null;
@@ -33,12 +36,12 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   @HostListener('window:unload', [ '$event' ])
   unloadHandler(event) {
-    this.stopConnection();
+    this.deleteDatabase();
   }
 
   @HostListener('window:beforeunload', [ '$event' ])
   beforeUnloadHander(event) {
-    this.stopConnection();
+    this.deleteDatabase();
   }
   
   ngOnInit(): void
@@ -48,11 +51,24 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.roomCollection = this.db.collection('Room');
     this.offerCollection = this.db.collection('Offer');
     this.answerCollection = this.db.collection('Answer');
+    this.scrollToBottom();
   }
 
   ngOnDestroy(): void
   {
+    this.deleteDatabase();
     this.stopConnection();
+  }
+
+  ngAfterViewChecked()
+  {        
+    this.scrollToBottom();        
+  } 
+
+  scrollToBottom(): void {
+      try {
+          this.myScrollContainer.nativeElement.scrollTop = this.myScrollContainer.nativeElement.scrollHeight;
+      } catch(err) { }                 
   }
 
   createConnection()
@@ -97,12 +113,15 @@ export class ChatComponent implements OnInit, OnDestroy {
 
     this.dataChannel.onopen = (event) =>  {
       console.log("readyState: ", this.dataChannel.readyState);
+      this.sendRTC('Offer', this.myId, 'active', 'sucessful');
       this._ngZone.run(() => {
         this.importantText = "You're connected with a Questies. You can chat with your friendly Questies now.";
       })
     }
     this.dataChannel.onclose = (event) => {
       console.log("readyState: ", this.dataChannel.readyState);
+      this.deleteDatabase();
+      this.stopConnection();
       this._ngZone.run(() => {
         this.importantText = "You're disconnected with your friendly Questies";
       })
@@ -127,6 +146,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.peerType = 'answer';
     this.sendRTC('Answer', this.myId, 'active', 'waiting');
     let num = this.getRandomInt(data.length);
+    this.db.collection('Offer').doc(data[num].id).update({active : 'answering'});
     this.offerCollection.doc(data[num].id).valueChanges()
       .subscribe(offerData => this.readMessage(offerData, 'Answer'));
     data[num]['answerer'] = this.myId;
@@ -145,12 +165,15 @@ export class ChatComponent implements OnInit, OnDestroy {
       }
       this.dataChannel.onopen = (event) =>  {
         console.log("readyState: ", this.dataChannel.readyState);
+        this.sendRTC('Answer', this.myId, 'active', 'sucessful');
         this._ngZone.run(() => {
           this.importantText = "You're connected with a Questies. You can chat with your friendly Questies now.";
         })
       }
       this.dataChannel.onclose = (event) => {
         console.log("readyState: ", this.dataChannel.readyState);
+        this.deleteDatabase();
+        this.stopConnection();
         this._ngZone.run(() => {
           this.importantText = "You're disconnected with your friendly Questies";
         })
@@ -161,19 +184,11 @@ export class ChatComponent implements OnInit, OnDestroy {
   sendRTC(database: string, id: string, type: string, message: string)
   {
     this.sendValue[type] = message;
-    console.log("send value", "to ", database, this.sendValue);
-    try
-    {
-      this.db.collection(database).doc(id).set(this.sendValue);
-    } catch(error)
-    {
-      this.db.collection(database).doc(id).update(this.sendValue);
-    }
+    this.db.collection(database).doc(id).set(this.sendValue);
   }
 
   readMessage(data, type: string)
   {
-    console.log("reading data", data, type);
     let msg;
     if (data.hasOwnProperty('ice'))
     {
@@ -221,26 +236,6 @@ export class ChatComponent implements OnInit, OnDestroy {
     return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
   }
 
-  handleCreateDescriptionError(error)
-  {
-    console.log("Unable to create an offer: " + error.toString());
-  }
-
-  handleRemoteAddCandidateSuccess()
-  {
-    console.log("Add candidate success to remote");
-  }
-
-  handleLocalAddCandidateSuccess()
-  {
-    console.log("Add candidate success to local");
-  }
-
-  handleAddCandidateError()
-  {
-    console.log("Oh noes! addICECandidate failed!");
-  }
-
   sendMessage()
   {
     this.myMessage.push({sender: 'You', message: this.textMessage})
@@ -256,13 +251,19 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.dataChannel = null;
     this.peerConnection = null;
 
-    if (this.peerType == 'offer')
-      this.offerCollection.doc(this.myId).delete();
-    else this.answerCollection.doc(this.myId).delete();
+    this.deleteDatabase();
 
     this.peerType = "";
     this.checkRoom = false;
 
     console.log("stop connection");
+  }
+
+  deleteDatabase()
+  {
+    if (this.peerType == 'offer')
+      this.offerCollection.doc(this.myId).delete();
+    else
+      this.answerCollection.doc(this.myId).delete();
   }
 }

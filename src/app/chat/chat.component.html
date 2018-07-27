@@ -1,38 +1,52 @@
-<header>
-    <link href="https://fonts.googleapis.com/css?family=Merienda" rel="stylesheet">
-</header>
-
-<div class="taskbar">
-  <div class="logo">
-    <a href="#">
-        <img id="imageLogo" src="assets/images/QuestBridge-Logo.png">
-    </a>
-    <h3 class="titleText">QuestChat</h3>
-  </div>
-  <div id="groupButton">
-    <div class="divButton">
-        <button class="myButton" mat-button color="primary" (click)="createConnection()" [disabled]="connect">Connect</button>
+<body>
+    <header>
+        <link href="https://fonts.googleapis.com/css?family=Merienda" rel="stylesheet">
+    </header>
+    
+    <div class="taskbar">
+        <div class="logo">
+            <a href="#">
+                <img id="imageLogo" src="assets/images/QuestBridge-Logo.png">
+            </a>
+            <h3 class="titleText">QuestChat</h3>
+        </div>
+        <div id="groupButton">
+            <div class="divButton">
+                <button class="myButton" mat-button color="primary" (click)="createConnection()" [disabled]="connect">Connect</button>
+            </div>
+            <div class="divButton">
+                <button class="myButton" mat-button color="primary" (click)="stopConnection()" [disabled]="disconnect">Disconnect</button>
+            </div>
+            <div class="divButton">
+                <button class="myButton" mat-button color="primary">Next Questies</button>
+            </div>
+        </div>
     </div>
-    <div class="divButton">
-        <button class="myButton" mat-button color="primary" (click)="stopConnection()" [disabled]="disconnect">Disconnect</button>
-    </div>
-    <div class="divButton">
-        <button class="myButton" mat-button color="primary">Next Questies</button>
-    </div>
-  </div>
-</div>
+    
+    <div style="margin-top: 135px"></div>
 
-<p *ngIf="importantText" class="importantText">{{importantText}}</p>
-
-<div class="showMessage" *ngFor="let message of myMessage">
-    <p class="messageText"><span class="sender">{{message.sender}}: </span>{{message.message}}</p>
-</div>
-
-<footer class="footer">
-    <div>
-        <mat-form-field id="messageInput">
-            <input matInput color="primary" placeholder="Enter the message" [(ngModel)]="textMessage" (keyup.enter)="sendMessage()">
-        </mat-form-field>
-        <button id="sendButton" mat-stroked-button color="primary" (click)="sendMessage()">Send</button>
+    <div class="statusBar">
+        <p *ngIf="importantText" class="importantText" style=" margin-left:2%;">{{importantText}}</p>
     </div>
-</footer>
+    
+    <div class="showMessage" #scrollMe>
+        <div *ngFor="let message of myMessage">
+            <p class="messageText">
+                <span *ngIf="message.sender=='You'" class="youSender">{{message.sender}}: </span>
+                <span *ngIf="message.sender=='Friendly Questies'" class="questiesSender">{{message.sender}}: </span>
+                {{message.message}}
+            </p>
+        </div>
+    </div>
+
+    <div style="margin-bottom: 110px"></div>
+    
+    <footer class="footer">
+        <div>
+            <mat-form-field id="messageInput">
+                <input matInput color="primary" placeholder="Enter the message" [(ngModel)]="textMessage" (keyup.enter)="sendMessage()">
+            </mat-form-field>
+            <button id="sendButton" mat-stroked-button color="primary" (click)="sendMessage()">Send</button>
+        </div>
+    </footer>
+</body>

@@ -1,6 +1,11 @@
 .taskbar {
-    height: 10%;
+    height: 110px;
     width: 100%;
+    background-color: white;
+    position: fixed;
+    top: 0;
+    left: 0;
+    border-bottom: 1px solid #ddd;
 }
 
 .myBorder {
@@ -47,6 +52,7 @@
     margin: 0 auto;
     font-size: 1.2rem;
     font-family: 'Indie Flower', cursive;
+    position: fixed;
 }
 
 .titleText {
@@ -76,24 +82,20 @@
 .showMessage {
     width: 100%;
     margin-left: 2%;
+    margin-right: 2% !important;
     overflow-y: scroll;
-    height: 80%;
-}
-
-.sender {
-    font-weight: bold;
-}
-
-html, body {
-    height:100%;
-    overflow:hidden;
+    height: 100%;
 }
 
 .footer {
-    position: absolute;
     height: 10%;
-    bottom: 0.3cm;
+    bottom: 0;
     width: 100%;
+    position: fixed;
+    left: 0;
+    width: 100%;
+    background-color: white;
+    text-align: center;
 }
 
 .importantText {
@@ -107,4 +109,21 @@ html, body {
 
 p {
     margin: 0;
+}
+
+.questiesSender {
+    font-weight: bold;
+    font-style: italic;
+}
+
+.youSender {
+    margin-right: 20px;
+    font-weight: bold;
+    font-style: italic;
+}
+
+.statusBar {
+    height: 10%;
+    width: 100%;
+    border-bottom: 1px solid #ddd;
 }
