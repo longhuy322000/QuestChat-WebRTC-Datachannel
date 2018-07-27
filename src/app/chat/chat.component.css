@@ -1,6 +1,7 @@
 .taskbar {
-    height: 10%;
+    height: 150px;
     width: 100%;
+    background-color: white;
 }
 
 .myBorder {
@@ -13,6 +14,7 @@
     text-align: center;
     float: left;
     margin-top: 0.2cm;
+    position: fixed;
 }
 
 #imageLogo {
@@ -47,6 +49,7 @@
     margin: 0 auto;
     font-size: 1.2rem;
     font-family: 'Indie Flower', cursive;
+    position: fixed;
 }
 
 .titleText {
@@ -76,24 +79,24 @@
 .showMessage {
     width: 100%;
     margin-left: 2%;
-    overflow-y: scroll;
-    height: 80%;
+    overflow: auto;
+    height: 650px;
 }
 
 .sender {
     font-weight: bold;
 }
 
-html, body {
-    height:100%;
-    overflow:hidden;
-}
-
 .footer {
-    position: absolute;
     height: 10%;
-    bottom: 0.3cm;
+    bottom: 0;
     width: 100%;
+    position: fixed;
+    left: 0;
+    width: 100%;
+    background-color: white;
+    color: white;
+    text-align: center;
 }
 
 .importantText {
