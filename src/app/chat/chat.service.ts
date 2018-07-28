@@ -8,11 +8,15 @@ import { map } from 'rxjs/operators';
 export class ChatService {
 
   public roomCollection: AngularFirestoreCollection;
+  public offerCollection: AngularFirestoreCollection;
+  public answerCollection: AngularFirestoreCollection;
 
   constructor(
     private db: AngularFirestore
   ) {
     this.roomCollection = this.db.collection('Room');
+    this.offerCollection = this.db.collection('Offer');
+    this.answerCollection = this.db.collection('Answer');
   }
 
   getAvailableOffer()
@@ -30,5 +34,11 @@ export class ChatService {
   getChanges(id)
   {
     return this.db.collection('Room').doc(id).valueChanges();
+  }
+
+  deleteDatabase(id: string, peerType: string)
+  {
+    this.offerCollection.doc(id).delete();
+    this.answerCollection.doc(id).delete();
   }
 }
