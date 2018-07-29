@@ -5,7 +5,6 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations'
 import { MaterialModule } from './material/material.module';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
-import { CoreComponent } from './core/core.component';
 import { FormsModule } from '@angular/forms';
 import { ChatComponent } from './chat/chat.component';
 import { AngularFireModule } from 'angularfire2';
@@ -17,7 +16,6 @@ import { environment } from '../environments/environment';
 @NgModule({
   declarations: [
     AppComponent,
-    CoreComponent,
     ChatComponent
   ],
   imports: [

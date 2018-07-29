@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { AngularFirestore, AngularFirestoreCollection } from 'angularfire2/firestore';
 import { map } from 'rxjs/operators';
-import { Observable } from 'rxjs'
+import { Observable } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -11,6 +11,8 @@ export class ChatService {
   public roomCollection: AngularFirestoreCollection;
   public offerCollection: AngularFirestoreCollection;
   public answerCollection: AngularFirestoreCollection;
+  public offerQueueCollection: AngularFirestoreCollection;
+  public answerQueueCollection: AngularFirestoreCollection;
 
   constructor(
     private db: AngularFirestore
@@ -18,6 +20,8 @@ export class ChatService {
     this.roomCollection = this.db.collection('Room');
     this.offerCollection = this.db.collection('Offer');
     this.answerCollection = this.db.collection('Answer');
+    this.offerQueueCollection = this.db.collection('OfferQueue');
+    this.answerQueueCollection = this.db.collection('AnswerQueue');
   }
 
   getCollection(database: string)
@@ -37,9 +41,19 @@ export class ChatService {
     return this.db.collection('Room').doc(id).valueChanges();
   }
 
-  deleteDatabase(id: string, peerType: string)
+  deleteDatabase(id: string, peerType: string, successful: boolean)
   {
-    this.offerCollection.doc(id).delete();
-    this.answerCollection.doc(id).delete();
+    if (peerType == 'offer')
+    {
+      this.offerCollection.doc(id).delete();
+      if (!successful)
+        this.offerQueueCollection.doc(id).delete();
+    }
+    else
+    {
+      this.answerCollection.doc(id).delete();
+      if (!successful)
+        this.answerQueueCollection.doc(id).delete();
+    }
   }
 }

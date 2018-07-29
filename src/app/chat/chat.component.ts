@@ -28,6 +28,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   public onlineQuesties = 0;
   public connect = false; disconnect = true; closeConnection = false;
   public offerData; answerData;
+  public successful: boolean = false;
 
   constructor(
     private _ngZone: NgZone,
@@ -38,12 +39,12 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   @HostListener('window:unload', [ '$event' ])
   unloadHandler(event) {
-    this.chatSerive.deleteDatabase(this.myId, this.peerType);
+    this.chatSerive.deleteDatabase(this.myId, this.peerType, this.successful);
   }
 
   @HostListener('window:beforeunload', [ '$event' ])
   beforeUnloadHander(event) {
-    this.chatSerive.deleteDatabase(this.myId, this.peerType);
+    this.chatSerive.deleteDatabase(this.myId, this.peerType, this.successful);
   }
   
   ngOnInit(): void
@@ -59,7 +60,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   ngOnDestroy(): void
   {
-    this.chatSerive.deleteDatabase(this.myId, this.peerType);
+    this.chatSerive.deleteDatabase(this.myId, this.peerType, this.successful);
     this.stopConnection();
   }
 
@@ -108,12 +109,13 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   setUpRTC()
   {
-    console.log("creating connection");
     this.addRequest = {offer: false, answer: false};
     this.connect = true; this.disconnect = false; this.closeConnection = false;
     this.peerType = undefined;
+    this.sendValue = {};
     this.checkRoom = false; this.checkRequest = false; this.offerData = undefined; this.answerData = undefined;
     this.myId = this.guid();
+    console.log("creating connection", this.myId);
     this.peerConnection = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.services.mozilla.com" },
@@ -164,13 +166,15 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     if (this.peerType == 'offer' && !this.checkRequest && this.offerData[this.offerData.length-1].id == this.myId && this.offerData.length-this.answerData.length > 1)
     {
       this.offerQueueCollection.doc(this.myId).delete();
+      console.log(this.offerData, this.answerData);
       this.stopConnection();
       this.createConnection();
     }
 
-    if (this.peerType == 'answer' && !this.checkRequest && this.answerData[this.answerData.length-1].id == this.myId && this.answerData.length-this.offerData.length > 0)
+    if (this.peerType == 'answer' && !this.checkRequest && this.answerData[this.answerData.length-1].id == this.myId && this.answerData.length-this.offerData.length > 1)
     {
       this.answerQueueCollection.doc(this.myId).delete();
+      console.log(this.offerData, this.answerData);
       this.stopConnection();
       this.createConnection();
     }
@@ -194,10 +198,11 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
         console.log("readyState: ", this.dataChannel.readyState);
         this._ngZone.run(() =>
         {
-          this.sendRTC('Offer', this.myId, 'active', 'sucessful');
+          this.sendRTC('Offer', this.myId, 'active', 'successful');
           this.importantText = "You're connected with a Questies. You can chat with your friendly Questies now.";
           this.connect = true;
           this.disconnect = false;
+          this.successful = true;
         })
       }
     }
@@ -206,7 +211,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
       {
         console.log("readyState: ", this.dataChannel.readyState);
         this._ngZone.run(() => {
-          this.chatSerive.deleteDatabase(this.myId, this.peerType);
+          this.chatSerive.deleteDatabase(this.myId, this.peerType, this.successful);
           this.stopConnection();
           this.sendRTC('Offer', this.myId, 'active', 'disconnected');
           this._ngZone.run(() =>
@@ -214,6 +219,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
             this.importantText = "You're disconnected with your friendly Questies";
             this.connect = true;
             this.disconnect = false;
+            this.successful = false;
           })
         })
       }
@@ -238,7 +244,11 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
             if (answerData.hasOwnProperty('offerer'))
             {
               this.offerCollection.doc(answerData.offerer).valueChanges()
-                .subscribe(offerData => this.readMessage(offerData));
+                .subscribe(offerData =>
+                  {
+                    if (offerData)
+                      this.readMessage(offerData);
+                  });
               this.sendValue['offerer'] = answerData.offerer;
             }
         });
@@ -260,10 +270,11 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
           console.log("readyState: ", this.dataChannel.readyState);
           this._ngZone.run(() =>
           {
-            this.sendRTC('Answer', this.myId, 'active', 'sucessful');
+            this.sendRTC('Answer', this.myId, 'active', 'successful');
             this.importantText = "You're connected with a Questies. You can chat with your friendly Questies now.";
             this.connect = true;
             this.disconnect = false;
+            this.successful = true;
           })
         }
       }
@@ -272,7 +283,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
         {
           console.log("readyState: ", this.dataChannel.readyState);
           this._ngZone.run(() => {
-            this.chatSerive.deleteDatabase(this.myId, this.peerType);
+            this.chatSerive.deleteDatabase(this.myId, this.peerType, this.successful);
             this.stopConnection();
             this.sendRTC('Answer', this.myId, 'active', 'disconnected');
             this._ngZone.run(() =>
@@ -280,6 +291,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
               this.importantText = "You're disconnected with your friendly Questies";
               this.connect = true;
               this.disconnect = false;
+              this.successful = false;
             })
           })
         }
@@ -302,6 +314,16 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   readMessage(data)
   {
     let msg;
+    if (data.hasOwnProperty('offerer') && !this.closeConnection)
+    {
+      console.log("checking failure", data);
+      if (data.offerer != this.myId)
+      {
+        console.log("so sad :((((");
+        this.stopConnection();
+        this.createConnection();
+      }
+    }
     if (data.hasOwnProperty('ice') && !this.closeConnection)
     {
       msg = JSON.parse(data.ice);
@@ -365,7 +387,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.disconnect = true;
     this.importantText = "You're disconnected with your friendly Questies";
 
-    this.chatSerive.deleteDatabase(this.myId, this.peerType);
+    this.chatSerive.deleteDatabase(this.myId, this.peerType, this.successful);
     
     if (this.dataChannel)
       this.dataChannel.close();
