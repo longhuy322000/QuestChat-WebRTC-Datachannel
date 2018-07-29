@@ -15,17 +15,19 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   public peerConnection = null;
   public dataChannel = null;
-  public roomId; myId; availableRoom: boolean = false;
+  public roomId; myId; answerId;
   public myMessage = []; textMessage = ""; importantText: string;
   public roomCollection: AngularFirestoreCollection;
   public offerCollection: AngularFirestoreCollection;
   public answerCollection: AngularFirestoreCollection;
-  public checkRoom: boolean = false;
-  public sendValue = {};
+  public offerQueueCollection: AngularFirestoreCollection;
+  public answerQueueCollection: AngularFirestoreCollection;
+  public checkRoom: boolean = false; checkRequest: boolean = false;
+  public sendValue = {}; addRequest = {offer: false, answer: false};
   public peerType: string;
   public onlineQuesties = 0;
   public connect = false; disconnect = true; closeConnection = false;
-  public checkRequest = {offer: false, answer: false};
+  public offerData; answerData;
 
   constructor(
     private _ngZone: NgZone,
@@ -49,6 +51,8 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.roomCollection = this.db.collection('Room');
     this.offerCollection = this.db.collection('Offer');
     this.answerCollection = this.db.collection('Answer');
+    this.offerQueueCollection = this.db.collection('OfferQueue');
+    this.answerQueueCollection = this.db.collection('AnswerQueue');
     this.getOnlineQuesties();
     this.scrollToBottom();
   }
@@ -78,20 +82,37 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
         this.answerCollection.valueChanges()
           .subscribe(answer => 
           {
-            this.onlineQuesties = offer.length + answer.length -2;
+            this.onlineQuesties = Math.max(0, offer.length + answer.length - 2);
           })
       })
   }
 
   createConnection()
   {
+    this.setUpRTC();
+    this.chatSerive.getCollection('OfferQueue')
+      .subscribe(data => 
+      {
+        this.offerData = data;
+        this.pairPeerConnection();
+      })
+    
+    this.chatSerive.getCollection('AnswerQueue')
+      .subscribe(data => 
+      {
+        this.answerData = data;
+        this.pairPeerConnection();
+      })
+    this.importantText = "Connecting you to other Questies";
+  }
+
+  setUpRTC()
+  {
     console.log("creating connection");
-    this.connect = true;
-    this.disconnect = false; this.closeConnection = false;
-    this.checkRequest = {offer: false, answer: false};
-    this.peerType = '';
-    this.sendValue = {};
-    this.checkRoom = false;
+    this.addRequest = {offer: false, answer: false};
+    this.connect = true; this.disconnect = false; this.closeConnection = false;
+    this.peerType = undefined;
+    this.checkRoom = false; this.checkRequest = false; this.offerData = undefined; this.answerData = undefined;
     this.myId = this.guid();
     this.peerConnection = new RTCPeerConnection({
       iceServers: [
@@ -99,42 +120,68 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
         { urls: "stun:stun.l.google.com:19302" }
       ]
     }, { optional: [] });
-    this.chatSerive.getAvailableOffer()
-      .subscribe(data => 
+  }
+
+  pairPeerConnection()
+  {
+    if (!this.offerData || !this.answerData)
+      return;
+    if (!this.checkRoom && !this.checkRequest)
+    {
+      if (this.offerData.length <= this.answerData.length)
       {
-        if (!this.checkRoom)
-        {
-          console.log(data);
-          if (data.length == 0)
-            this.createOffer();
-          else
+        this.offerQueueCollection.doc(this.myId).set({offer: true});
+        this.peerType = 'offer';
+      }
+      else
+      {
+        this.answerQueueCollection.doc(this.myId).set({offer: true});
+        this.createAnswer();
+        this.peerType = 'answer';
+      }
+      this.checkRoom = true;
+    }
+    
+    if (this.peerType == 'offer' && !this.checkRequest && this.offerData.length > 1 && this.answerData.length > 1)
+      if (this.offerData[1].id==this.myId)
+      {
+        console.log("deleting data", this.answerData);
+        this.checkRequest = true;
+        this.answerId = this.answerData[1].id;
+        this.answerQueueCollection.doc(this.answerId).delete();
+        this.sendRTC('Offer', this.myId, 'answerer', this.answerId);
+        this.createOffer();
+        this.answerCollection.doc(this.answerId).update({offerer: this.myId});
+        this.answerCollection.doc(this.answerId).valueChanges()
+          .subscribe(answerData =>
           {
-            for (let i=0; i<data.length; i++)
-            {
-              if (data[i].hasOwnProperty('answerer'))
-              {
-                data.splice(i, 1);;
-                i--;
-              }
-            }
-            if(data.length !=0)
-              this.createAnswer(data);
-            else this.createOffer();
-          }
-          this.checkRoom = true;
-          this.importantText = "Connecting you to other Questies";
-        }
-        this.checkRoom = true;
-      })
+            if(answerData)
+              this.readMessage(answerData)
+          });
+        this.offerQueueCollection.doc(this.myId).delete();
+      }
+      
+    if (this.peerType == 'offer' && !this.checkRequest && this.offerData[this.offerData.length-1].id == this.myId && this.offerData.length-this.answerData.length > 1)
+    {
+      this.offerQueueCollection.doc(this.myId).delete();
+      this.stopConnection();
+      this.createConnection();
+    }
+
+    if (this.peerType == 'answer' && !this.checkRequest && this.answerData[this.answerData.length-1].id == this.myId && this.answerData.length-this.offerData.length > 0)
+    {
+      this.answerQueueCollection.doc(this.myId).delete();
+      this.stopConnection();
+      this.createConnection();
+    }
   }
 
   createOffer()
   {
     console.log("creating offer", this.myId);
-    this.peerType = 'offer';
-    this.sendRTC('Offer', this.myId, 'active', 'waiting');
+    this.sendRTC('Offer', this.myId, 'active', 'waiting'); 
     this.peerConnection.onicecandidate = (event) => {
-      (event && event.candidate) ? this.sendRTC('Offer', this.myId, 'ice', JSON.stringify({ ice: event.candidate })) : console.log("Sent All Ice");
+      event.candidate ? this.sendRTC('Offer', this.myId, 'ice', JSON.stringify({ ice: event.candidate })) : console.log("Sent All Ice");
     }
     this.dataChannel = this.peerConnection.createDataChannel(this.roomId);
     this.peerConnection.createOffer()
@@ -177,39 +224,26 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
         this.myMessage.push({sender: 'Friendly Questies', message: event.data});
       })
     };
-    this.offerCollection.doc(this.myId).valueChanges()
-      .subscribe((data:any) => 
-      {
-        if (data)
-          if (data.hasOwnProperty('answerer'))
-          {
-            this.answerCollection.doc(data.answerer).valueChanges()
-              .subscribe(answerData =>
-                {
-                  if(answerData)
-                    this.readMessage(answerData)
-                });
-            this.sendValue['answerer'] = data.answerer;
-          }
-      })
   }
 
-  createAnswer(data)
+  createAnswer()
   {
+    console.log('creating answer', this.myId);
     this.peerType = 'answer';
     this.sendRTC('Answer', this.myId, 'active', 'waiting');
-    let num = this.getRandomInt(data.length);
-    this.offerCollection.doc(data[num].id).update({answerer: this.myId});
-    this.db.collection('Offer').doc(data[num].id).update({active : 'answering'});
-    console.log("creating answer", this.myId, data[num].id);
-    this.offerCollection.doc(data[num].id).valueChanges()
-      .subscribe(offerData =>
+    this.answerCollection.doc(this.myId).valueChanges()
+      .subscribe((answerData:any) =>
         {
-          if (offerData)
-            this.readMessage(offerData)
+          if (answerData)
+            if (answerData.hasOwnProperty('offerer'))
+            {
+              this.offerCollection.doc(answerData.offerer).valueChanges()
+                .subscribe(offerData => this.readMessage(offerData));
+              this.sendValue['offerer'] = answerData.offerer;
+            }
         });
     this.peerConnection.onicecandidate = (event) => {
-      (event && event.candidate) ? this.sendRTC('Answer', this.myId, 'ice', JSON.stringify({ ice: event.candidate })) : console.log("Sent All Ice");
+      event.candidate ? this.sendRTC('Answer', this.myId, 'ice', JSON.stringify({ ice: event.candidate })) : console.log("Sent All Ice");
     }
     this.peerConnection.ondatachannel = (event) => 
     {
@@ -226,7 +260,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
           console.log("readyState: ", this.dataChannel.readyState);
           this._ngZone.run(() =>
           {
-            this.sendRTC('Offer', this.myId, 'active', 'sucessful');
+            this.sendRTC('Answer', this.myId, 'active', 'sucessful');
             this.importantText = "You're connected with a Questies. You can chat with your friendly Questies now.";
             this.connect = true;
             this.disconnect = false;
@@ -240,7 +274,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
           this._ngZone.run(() => {
             this.chatSerive.deleteDatabase(this.myId, this.peerType);
             this.stopConnection();
-            this.sendRTC('Offer', this.myId, 'active', 'disconnected');
+            this.sendRTC('Answer', this.myId, 'active', 'disconnected');
             this._ngZone.run(() =>
             {
               this.importantText = "You're disconnected with your friendly Questies";
@@ -261,7 +295,6 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   sendRTC(database: string, id: string, type: string, message: string)
   {
-    console.log("send: ", type, message)
     this.sendValue[type] = message;
     this.db.collection(database).doc(id).set(this.sendValue);
   }
@@ -269,22 +302,13 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   readMessage(data)
   {
     let msg;
-    if (this.peerType=='answer' && data.hasOwnProperty('answerer'))
-    {
-      if (data.answerer != this.myId)
-      {
-        console.log("here", this.myId, data);
-        this.stopConnection();
-        this.createConnection();
-      }
-    }
     if (data.hasOwnProperty('ice') && !this.closeConnection)
     {
       msg = JSON.parse(data.ice);
       console.log("added ice");
       this.peerConnection.addIceCandidate(new RTCIceCandidate(msg.ice));
     }
-    if (data.hasOwnProperty('offer') && !this.checkRequest.offer && !this.closeConnection)
+    if (data.hasOwnProperty('offer') && !this.addRequest.offer && !this.closeConnection)
     {
       msg = JSON.parse(data.offer);
       this.peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp))
@@ -292,16 +316,16 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
           .then(answer =>
             {
               console.log("added offer");
-              this.checkRequest.offer = true
+              this.addRequest.offer = true;
               this.peerConnection.setLocalDescription(answer)
             })
           .then(() => this.sendRTC('Answer', this.myId, 'answer', JSON.stringify({'sdp': this.peerConnection.localDescription})));
     }
-    if (data.hasOwnProperty('answer') && !this.checkRequest.answer && !this.closeConnection)
+    if (data.hasOwnProperty('answer') && !this.addRequest.answer && !this.closeConnection)
     {
       console.log("added answer");
       msg = JSON.parse(data.answer);
-      this.checkRequest.answer = true;
+      this.addRequest.answer = true;
       this.peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp));
     }
   }
@@ -351,7 +375,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.dataChannel = null;
     this.peerConnection = null;
 
-    this.peerType = "";
+    this.peerType = undefined;
     this.myId = "";
 
     this.closeConnection = true;

@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { AngularFirestore, AngularFirestoreCollection } from 'angularfire2/firestore';
 import { map } from 'rxjs/operators';
+import { Observable } from 'rxjs'
 
 @Injectable({
   providedIn: 'root'
@@ -19,13 +20,13 @@ export class ChatService {
     this.answerCollection = this.db.collection('Answer');
   }
 
-  getAvailableOffer()
+  getCollection(database: string)
   {
-    return this.db.collection('Offer', ref => ref.where('active', '==', 'waiting')).snapshotChanges().pipe(
+    return this.db.collection(database).snapshotChanges().pipe(
       map(actions => actions.map(a => 
       {
         const id = a.payload.doc.id;
-        const data = a.payload.doc.data();
+        const data = a.payload.doc.data;
         return {id, ...data};
       }))
     )
