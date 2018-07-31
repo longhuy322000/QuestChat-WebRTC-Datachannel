@@ -15,7 +15,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   public peerConnection = null;
   public dataChannel = null;
-  public roomId; myId; answerId;
+  public roomId; myId; answerId; preId;
   public myMessage = []; textMessage = ""; importantText: string;
   public roomCollection: AngularFirestoreCollection;
   public offerCollection: AngularFirestoreCollection;
@@ -28,7 +28,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   public onlineQuesties = 0;
   public connect = false; disconnect = true; closeConnection = false;
   public offerData; answerData;
-  public successful: boolean = false;
+  public successful: boolean = false; pair: boolean = false;
 
   constructor(
     private _ngZone: NgZone,
@@ -144,8 +144,8 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
       this.checkRoom = true;
     }
     
-    if (this.peerType == 'offer' && !this.checkRequest && this.offerData.length > 1 && this.answerData.length > 1)
-      if (this.offerData[1].id==this.myId)
+    else if (!this.pair && this.peerType == 'offer' && !this.checkRequest && this.offerData.length > 1 && this.answerData.length > 1)
+      if (this.offerData[1].id==this.myId && this.answerData[1].id != this.preId)
       {
         console.log("deleting data", this.answerData);
         this.checkRequest = true;
@@ -161,9 +161,10 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
               this.readMessage(answerData)
           });
         this.offerQueueCollection.doc(this.myId).delete();
+        this.pair = true;
       }
-      
-    if (this.peerType == 'offer' && !this.checkRequest && this.offerData[this.offerData.length-1].id == this.myId && this.offerData.length-this.answerData.length > 1)
+    console.log(this.pair);
+    if (this.peerType == 'offer' && !this.pair && !this.checkRequest && this.offerData[this.offerData.length-1].id == this.myId && this.offerData.length-this.answerData.length > 1)
     {
       this.offerQueueCollection.doc(this.myId).delete();
       console.log(this.offerData, this.answerData);
@@ -171,9 +172,10 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
       this.createConnection();
     }
 
-    if (this.peerType == 'answer' && !this.checkRequest && this.answerData[this.answerData.length-1].id == this.myId && this.answerData.length-this.offerData.length > 1)
+    else if (this.peerType == 'answer' && !this.pair && !this.checkRequest && this.answerData[this.answerData.length-1].id == this.myId && this.answerData.length-this.offerData.length > 1)
     {
       this.answerQueueCollection.doc(this.myId).delete();
+      this.preId = this.myId;
       console.log(this.offerData, this.answerData);
       this.stopConnection();
       this.createConnection();
@@ -316,7 +318,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     let msg;
     if (data.hasOwnProperty('offerer') && !this.closeConnection)
     {
-      console.log("checking failure", data);
+      console.log("checking failure", data, this.myId, data.id);
       if (data.offerer != this.myId)
       {
         console.log("so sad :((((");
